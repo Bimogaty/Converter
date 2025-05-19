@@ -3,95 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wuthering Waves Waveplate Counter</title>
+  <title>Wuthering Waves Waveplate Counter (Synced)</title>
   <style>
     /* Background with Wuthering Waves theme */
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      background: url('https://i.imgur.com/WWavesBG.jpg') no-repeat center center fixed;
-      background-size: cover;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; height:100vh;
+      background:url('https://i.imgur.com/WWavesBG.jpg') no-repeat center center fixed; background-size:cover;
+      display:flex; align-items:center; justify-content:center;
     }
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 1;
+    .overlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1; }
+    .container { position:relative; z-index:2; background:rgba(255,255,255,0.9); padding:2.5rem; border-radius:12px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.3); text-align:center; max-width:360px; width:90%; }
+    h1 { margin-bottom:1rem; font-size:2rem; background:linear-gradient(45deg,#7b1fa2,#9c27b0);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
     }
-    .container {
-      position: relative;
-      z-index: 2;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 2.5rem;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      text-align: center;
-      max-width: 360px;
-      width: 90%;
+    .display { font-size:2.2rem; margin:1rem 0; color:#333; }
+    #next-waveplate,#full-waveplate { font-size:1rem; color:#555; margin-bottom:0.75rem; }
+    .controls { margin-top:1rem; display:flex; justify-content:center; flex-wrap:wrap; gap:0.5rem; }
+    .controls input { width:80px; padding:0.5rem; border:1px solid #9c27b0; border-radius:6px; text-align:center;
+      font-size:1rem; -moz-appearance:textfield;
     }
-    h1 {
-      margin-bottom: 1rem;
-      font-size: 2rem;
-      background: linear-gradient(45deg, #f44336, #ff9800);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .controls input::-webkit-outer-spin-button, .controls input::-webkit-inner-spin-button {
+      -webkit-appearance:none; margin:0;
     }
-    .display {
-      font-size: 2.2rem;
-      margin: 1rem 0;
-      color: #333;
+    .controls button { flex:1 1 100px; padding:0.6rem 1rem; border:none;
+      background:linear-gradient(45deg,#7b1fa2,#9c27b0); color:#fff; font-weight:bold; border-radius:6px;
+      cursor:pointer; transition:transform .1s ease,opacity .1s;
     }
-    #next-waveplate, #full-waveplate {
-      font-size: 1rem;
-      color: #555;
-      margin-bottom: 0.75rem;
-    }
-    .controls {
-      margin-top: 1rem;
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-    .controls input {
-      width: 80px;
-      padding: 0.5rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      text-align: center;
-      font-size: 1rem;
-    }
-    .controls button {
-      flex: 1 1 100px;
-      padding: 0.6rem 1rem;
-      border: none;
-      background: linear-gradient(45deg, #f44336, #ff9800);
-      color: #fff;
-      font-weight: bold;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: transform 0.1s ease;
-    }
-    .controls button:hover {
-      transform: scale(1.05);
-    }
-    .controls button:active {
-      transform: scale(0.95);
-    }
-    @media (max-width: 400px) {
-      .container { padding: 1.5rem; }
-      .display { font-size: 1.8rem; }
-      h1 { font-size: 1.6rem; }
-    }
+    .controls button:hover { transform:scale(1.05); opacity:0.9; }
+    .controls button:active { transform:scale(0.95); opacity:0.8; }
+    @media(max-width:400px){ .container{padding:1.5rem;} .display{font-size:1.8rem;} h1{font-size:1.6rem;} }
   </style>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-firestore.js"></script>
 </head>
 <body>
   <div class="overlay"></div>
@@ -108,83 +53,80 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const WAVEPLATE_MAX = 240;
-      const RECOVER_SEC = 6 * 60; // 6 minutes per waveplate
-      const STORAGE_KEY = 'wwWaveplateState';
+    // TODO: Replace with your Firebase project config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      // ...other config
+    };
+    // Initialize
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    let stateDoc;
+    const docRef = db.collection('wwSync').doc('globalState');
 
-      function saveState(state) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      }
+    const WAVEPLATE_MAX = 260;
+    const RECOVER_SEC = 6 * 60;
 
-      function loadState() {
-        const data = localStorage.getItem(STORAGE_KEY);
-        return data ? JSON.parse(data) : null;
-      }
+    let state = { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
 
-      function init() {
-        let st = loadState();
-        if (!st) {
-          st = { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
-          saveState(st);
+    // Listen for remote updates
+    firebase.auth().signInAnonymously().then(() => {
+      docRef.onSnapshot(doc => {
+        if (doc.exists) {
+          state = doc.data();
+          updateDisplay();
+        } else {
+          docRef.set(state);
         }
-        return st;
-      }
-
-      function getDiffSec() {
-        return Math.floor((Date.now() - state.lastTimestamp) / 1000);
-      }
-
-      function calculateCurrent() {
-        const gained = Math.floor(getDiffSec() / RECOVER_SEC);
-        return Math.min(WAVEPLATE_MAX, state.lastWaveplate + gained);
-      }
-
-      function formatTime(sec) {
-        const h = Math.floor(sec / 3600);
-        const m = Math.floor((sec % 3600) / 60);
-        const s = sec % 60;
-        let str = '';
-        if (h) str += `${h}h `;
-        if (m || h) str += `${m}m `;
-        str += `${s}s`;
-        return str;
-      }
-
-      function updateDisplay() {
-        const nowVal = calculateCurrent();
-        const elapsed = getDiffSec();
-        const nextIn = RECOVER_SEC - (elapsed % RECOVER_SEC);
-        const fullIn = nowVal < WAVEPLATE_MAX ? (WAVEPLATE_MAX - nowVal) * RECOVER_SEC - (elapsed % RECOVER_SEC) : 0;
-
-        document.getElementById('current-waveplate').textContent = `Waveplate: ${nowVal}/${WAVEPLATE_MAX}`;
-        document.getElementById('next-waveplate').textContent = nowVal < WAVEPLATE_MAX ? `Next in: ${formatTime(nextIn)}` : 'Full';
-        document.getElementById('full-waveplate').textContent = nowVal < WAVEPLATE_MAX ? `Full in: ${formatTime(fullIn)}` : '';
-      }
-
-      window.reset = () => {
-        state = { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
-        saveState(state);
-        updateDisplay();
-      };
-
-      window.setWaveplate = () => {
-        const inp = document.getElementById('waveplate-amount');
-        const val = parseInt(inp.value, 10);
-        if (isNaN(val) || val < 0 || val > WAVEPLATE_MAX) return;
-        state = { lastTimestamp: Date.now(), lastWaveplate: val };
-        saveState(state);
-        inp.value = '';
-        updateDisplay();
-      };
-
-      let state = init();
-      updateDisplay();
-      setInterval(updateDisplay, 1000);
-
-      document.getElementById('reset-btn').addEventListener('click', reset);
-      document.getElementById('set-btn').addEventListener('click', setWaveplate);
+      });
     });
+
+    function formatTime(sec) {
+      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+      let str = "";
+      if (h) str += `${h}h `;
+      if (m||h) str += `${m}m `;
+      str += `${s}s`;
+      return str;
+    }
+
+    function getDiffSec() {
+      return Math.floor((Date.now() - state.lastTimestamp)/1000);
+    }
+    function calculateCurrent() {
+      const gained = Math.floor(getDiffSec()/RECOVER_SEC);
+      return Math.min(WAVEPLATE_MAX, state.lastWaveplate + gained);
+    }
+
+    function updateRemote() {
+      docRef.set(state);
+    }
+    function updateDisplay() {
+      const nowVal = calculateCurrent();
+      const elapsed = getDiffSec();
+      const nextIn = RECOVER_SEC - (elapsed % RECOVER_SEC);
+      const fullIn = nowVal < WAVEPLATE_MAX ? (WAVEPLATE_MAX-nowVal)*RECOVER_SEC - (elapsed%RECOVER_SEC) : 0;
+      document.getElementById('current-waveplate').textContent = `Waveplate: ${nowVal}/${WAVEPLATE_MAX}`;
+      document.getElementById('next-waveplate').textContent = nowVal<WAVEPLATE_MAX?`Next in: ${formatTime(nextIn)}`:'Full';
+      document.getElementById('full-waveplate').textContent = nowVal<WAVEPLATE_MAX?`Full in: ${formatTime(fullIn)}`:'';
+    }
+
+    window.reset = () => {
+      state = { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
+      updateRemote();
+    };
+    window.setWaveplate = () => {
+      const val = parseInt(document.getElementById('waveplate-amount').value,10);
+      if (isNaN(val)||val<0||val>WAVEPLATE_MAX) return;
+      state = { lastTimestamp: Date.now(), lastWaveplate: val };
+      document.getElementById('waveplate-amount').value='';
+      updateRemote();
+    };
+
+    document.getElementById('reset-btn').onclick = reset;
+    document.getElementById('set-btn').onclick = setWaveplate;
   </script>
 </body>
 </html>
