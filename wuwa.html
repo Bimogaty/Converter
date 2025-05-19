@@ -49,7 +49,7 @@
     <div class="controls">
       <input type="number" id="waveplate-amount" min="0" max="260" placeholder="Current" />
       <button id="set-btn">Set Waveplate</button>
-      <button id="reset-btn">Reset</button>
+      <button id="full-btn">Full</button>
     </div>
   </div>
 
@@ -112,7 +112,7 @@
       document.getElementById('waveplate-amount').value = '';
       applyNew(Date.now(), v);
     };
-    document.getElementById('reset-btn').onclick = reset;
+    document.getElementById('full-btn').onclick = reset;
     document.getElementById('set-btn').onclick = setWaveplate;
 
     // Firebase setup
