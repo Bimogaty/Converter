@@ -5,22 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wuthering Waves Waveplate Counter (Synced)</title>
   <style>
-    /* Background with Wuthering Waves theme */
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; height:100vh;
-      background:url('https://i.imgur.com/WWavesBG.jpg') no-repeat center center fixed; background-size:cover;
-      display:flex; align-items:center; justify-content:center;
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; height: 100vh;
+      background: url('https://i.imgur.com/WWavesBG.jpg') no-repeat center center fixed;
+      background-size: cover; display: flex; align-items: center; justify-content: center;
     }
-    .overlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1; }
-    .container { position:relative; z-index:2; background:rgba(255,255,255,0.9); padding:2.5rem; border-radius:12px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.3); text-align:center; max-width:360px; width:90%; }
-    h1 { margin-bottom:1rem; font-size:2rem; background:linear-gradient(45deg,#7b1fa2,#9c27b0);
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1; }
+    .container { position: relative; z-index: 2; background: rgba(255,255,255,0.9); padding: 2.5rem; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3); text-align: center; max-width: 360px; width: 90%;
+    }
+    h1 { margin-bottom:1rem; font-size:2rem;
+         background:linear-gradient(45deg,#7b1fa2,#9c27b0);
+         -webkit-background-clip:text; -webkit-text-fill-color:transparent;
     }
     .display { font-size:2.2rem; margin:1rem 0; color:#333; }
     #next-waveplate,#full-waveplate { font-size:1rem; color:#555; margin-bottom:0.75rem; }
     .controls { margin-top:1rem; display:flex; justify-content:center; flex-wrap:wrap; gap:0.5rem; }
-    .controls input { width:80px; padding:0.5rem; border:1px solid #9c27b0; border-radius:6px; text-align:center;
-      font-size:1rem; -moz-appearance:textfield;
+    .controls input { width:80px; padding:0.5rem; border:1px solid #9c27b0; border-radius:6px;
+                     text-align:center; font-size:1rem; -moz-appearance:textfield;
     }
     .controls input::-webkit-outer-spin-button, .controls input::-webkit-inner-spin-button {
       -webkit-appearance:none; margin:0;
@@ -53,80 +54,101 @@
   </div>
 
   <script>
-    // TODO: Replace with your Firebase project config
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      // ...other config
-    };
-    // Initialize
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    let stateDoc;
-    const docRef = db.collection('wwSync').doc('globalState');
-
     const WAVEPLATE_MAX = 260;
     const RECOVER_SEC = 6 * 60;
+    const STORAGE_KEY = 'wwWaveplateLocal';
 
-    let state = { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
+    // Local storage fallback
+    function saveLocal(state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+    function loadLocal() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : null;
+    }
 
-    // Listen for remote updates
-    firebase.auth().signInAnonymously().then(() => {
-      docRef.onSnapshot(doc => {
-        if (doc.exists) {
-          state = doc.data();
-          updateDisplay();
-        } else {
-          docRef.set(state);
-        }
-      });
-    });
+    // Shared state object
+    let state = loadLocal() || { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
 
     function formatTime(sec) {
-      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-      let str = "";
-      if (h) str += `${h}h `;
-      if (m||h) str += `${m}m `;
-      str += `${s}s`;
-      return str;
+      const h = Math.floor(sec/3600);
+      const m = Math.floor((sec%3600)/60);
+      const s = sec%60;
+      return `${h? h+'h ':''}${m||h? m+'m ':''}${s}s`;
     }
-
-    function getDiffSec() {
-      return Math.floor((Date.now() - state.lastTimestamp)/1000);
-    }
+    function getDiffSec() { return Math.floor((Date.now() - state.lastTimestamp)/1000); }
     function calculateCurrent() {
       const gained = Math.floor(getDiffSec()/RECOVER_SEC);
       return Math.min(WAVEPLATE_MAX, state.lastWaveplate + gained);
-    }
-
-    function updateRemote() {
-      docRef.set(state);
     }
     function updateDisplay() {
       const nowVal = calculateCurrent();
       const elapsed = getDiffSec();
       const nextIn = RECOVER_SEC - (elapsed % RECOVER_SEC);
-      const fullIn = nowVal < WAVEPLATE_MAX ? (WAVEPLATE_MAX-nowVal)*RECOVER_SEC - (elapsed%RECOVER_SEC) : 0;
+      const fullIn = nowVal < WAVEPLATE_MAX
+        ? (WAVEPLATE_MAX - nowVal)*RECOVER_SEC - (elapsed % RECOVER_SEC)
+        : 0;
       document.getElementById('current-waveplate').textContent = `Waveplate: ${nowVal}/${WAVEPLATE_MAX}`;
-      document.getElementById('next-waveplate').textContent = nowVal<WAVEPLATE_MAX?`Next in: ${formatTime(nextIn)}`:'Full';
-      document.getElementById('full-waveplate').textContent = nowVal<WAVEPLATE_MAX?`Full in: ${formatTime(fullIn)}`:'';
+      document.getElementById('next-waveplate').textContent = nowVal < WAVEPLATE_MAX
+        ? `Next in: ${formatTime(nextIn)}` : 'Full';
+      document.getElementById('full-waveplate').textContent = nowVal < WAVEPLATE_MAX
+        ? `Full in: ${formatTime(fullIn)}` : '';
     }
 
-    window.reset = () => {
-      state = { lastTimestamp: Date.now(), lastWaveplate: WAVEPLATE_MAX };
-      updateRemote();
-    };
-    window.setWaveplate = () => {
-      const val = parseInt(document.getElementById('waveplate-amount').value,10);
-      if (isNaN(val)||val<0||val>WAVEPLATE_MAX) return;
-      state = { lastTimestamp: Date.now(), lastWaveplate: val };
-      document.getElementById('waveplate-amount').value='';
-      updateRemote();
-    };
+    // Initialize display & local save
+    updateDisplay(); saveLocal(state);
+    setInterval(updateDisplay, 1000);
 
+    // Button handlers update local and remote
+    function applyNew(ts, val) {
+      state = { lastTimestamp: ts, lastWaveplate: val };
+      updateDisplay(); saveLocal(state);
+      if (docRef) docRef.set(state).catch(console.error);
+    }
+    window.reset = () => applyNew(Date.now(), WAVEPLATE_MAX);
+    window.setWaveplate = () => {
+      const v = parseInt(document.getElementById('waveplate-amount').value,10);
+      if (isNaN(v)||v<0||v>WAVEPLATE_MAX) return;
+      document.getElementById('waveplate-amount').value = '';
+      applyNew(Date.now(), v);
+    };
     document.getElementById('reset-btn').onclick = reset;
     document.getElementById('set-btn').onclick = setWaveplate;
+
+    // Firebase setup
+    let docRef = null;
+    try {
+      const firebaseConfig = {
+        apiKey: "AIzaSyBSGi8sZDvqnw-KDDy_Klj73HWc7_jX_HA",
+        authDomain: "waveplates-counter.firebaseapp.com",
+        projectId: "waveplates-counter",
+        storageBucket: "waveplates-counter.firebasestorage.app",
+        messagingSenderId: "660255102386",
+        appId: "1:660255102386:web:db000268d0f962b5d280ab",
+        measurementId: "G-D73ZJ79LLV"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      docRef = db.collection('wwSync').doc('globalState');
+      firebase.auth().signInAnonymously()
+      .then(() => {
+        docRef.get()
+          .then(doc => {
+            if (doc.exists) state = doc.data();
+            else docRef.set(state);
+            updateDisplay(); saveLocal(state);
+          });
+        docRef.onSnapshot(snapshot => {
+          if (snapshot.exists) {
+            state = snapshot.data();
+            updateDisplay(); saveLocal(state);
+          }
+        });
+      })
+      .catch(err => console.error('Firebase auth:', err));
+    } catch(e) {
+      console.warn('Firebase init failed, running local only.');
+    }
   </script>
 </body>
 </html>
